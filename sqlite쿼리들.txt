@@ -1,0 +1,113 @@
+## lpad
+
+select substr('0' || num, -2, 2) num from hex
+order by rowid
+limit (select count(*) from data where key_a = '구석기');
+
+## 하위 목록검색 
+#############################################################################1.엑셀을 통해서 keycode 테이블 생성
+/*작업하기 위해 수정해야하는곳 4군데*/
+select parent, child, '', parentcode--(select keycode from keycode where parent = keyword and rootcode = substr(keycode, 1, 1)) parentcode
+from (
+    select 
+        key_a root, 
+        key_c parent, /*여기 parent(상위)*/
+        (
+            select keycode 
+            from keycode c
+            where length(keycode) = 5 /*여기 parent가 a : 1, b : 3, c : 5, d : 7, e : 고려하지 않음 */
+            -- /* a */and a.key_a = keyword
+            -- /* b */and a.key_b = keyword
+             /* c */and a.key_c = c.keyword
+            -- /* d */and a.key_d = keyword
+            
+            and b.keycode = substr(keycode, 1, 1)
+        ) parentcode,
+        key_d child, keycode rootcode, year  /*여기 child(하위)*/
+    from data a, keycode b 
+    where a.key_a = b.keyword
+    and child is not null
+    and rootcode = (select substr(keycode, 1, 1) from keycode where parent = keyword and 
+rootcode = substr(keycode, 1, 1))
+    group by parent, child
+    --order by rootcode, year
+)
+order by parentcode, year;
+
+##2.위의 작업을 끝내고 생성된 keycode 테이블을 이용하여 description 테이블에 들어갈 자료를 추출한다
+
+select year, description, keycode from(with
+    e as (select * from data, keycode 
+    where key_e is not null and key_e = keyword and length(keycode) = 9
+    and (substr(keycode, 1, 1) in (select keycode from keycode where key_a = keyword)
+    or substr(keycode, 1, 3) in (select keycode from keycode where key_b = keyword)
+    or substr(keycode, 1, 5) in (select keycode from keycode where key_c = keyword)
+    or substr(keycode, 1, 7) in (select keycode from keycode where key_d = keyword))),
+    
+    d as (select * from data, keycode 
+    where key_d is not null and key_e is null and key_d = keyword and length(keycode) = 7
+    and (substr(keycode, 1, 1) in (select keycode from keycode where key_a = keyword)
+    or substr(keycode, 1, 3) in (select keycode from keycode where key_b = keyword)
+    or substr(keycode, 1, 5) in (select keycode from keycode where key_c = keyword))),
+    
+    c as (select * from data, keycode 
+    where key_c is not null and key_d is null and key_e is null and key_c = keyword and length(keycode) = 5 
+    and (substr(keycode, 1, 1) in (select keycode from keycode where key_a = keyword)
+    or substr(keycode, 1, 3) in (select keycode from keycode where key_b = keyword))),
+    
+    b as (select * from data, keycode 
+    where key_b is not null and key_c is null and key_d is null and key_e is null and key_b = keyword and length(keycode) = 3
+    and substr(keycode, 1, 1) in (select keycode from keycode where key_a = keyword))
+select * from e
+union
+select * from d
+union
+select * from c
+union
+select * from b
+)
+group by year, description, key_a, key_b, key_c, key_d, key_e
+
+
+######2.위에꺼 쿼리 수정
+with
+    d as (
+        with
+        c as (
+            with
+            b as (
+                with
+                a as (select year, description, key_a, (select keycode from keycode where key_a = keyword) keycode_a, key_b, key_c, key_d, key_e, use, max from data)
+                select year, description, key_A, keycode_a, key_b, (select keycode from keycode where key_b = keyword and a.keycode_a = substr(keycode,1, 1)) keycode_b, key_c, key_d, key_e, use, max from a
+            )
+            select year, description, key_A, keycode_a, key_b, keycode_b, key_c, (select keycode from keycode where key_c = keyword and b.keycode_b = substr(keycode, 1, 3)) keycode_c, key_d, key_e, use, max from b
+        )
+        select year, description, key_A, keycode_a, key_b, keycode_b, key_c, keycode_c, key_d, (select keycode from keycode where key_d = keyword and c.keycode_c = substr(keycode, 1, 5)) keycode_d,key_e, use, max from c
+    )
+select year, description, key_A, keycode_a, key_b, keycode_b, key_c, keycode_c, key_d, keycode_d, key_e, (select keycode from keycode where key_e = keyword and d.keycode_d = substr(keycode, 1, 7)) keycode_e, use, max from d
+order by year;
+
+select year, description, (case when use = 1 then keycode_a when use = 2 then keycode_b when use = 3 then keycode_c when use = 4 then keycode_d when use = 5 then keycode_e end)
+from (
+    with
+    d as (
+        with
+        c as (
+            with
+            b as (
+                with
+                a as (select year, description, key_a, (select keycode from keycode where key_a = keyword) keycode_a, key_b, key_c, key_d, key_e, use, max from data)
+                select year, description, key_A, keycode_a, key_b, (select keycode from keycode where key_b = keyword and a.keycode_a = substr(keycode,1, 1)) keycode_b, key_c, key_d, key_e, use, max from a
+            )
+            select year, description, key_A, keycode_a, key_b, keycode_b, key_c, (select keycode from keycode where key_c = keyword and b.keycode_b = substr(keycode, 1, 3)) keycode_c, key_d, key_e, use, max from b
+        )
+        select year, description, key_A, keycode_a, key_b, keycode_b, key_c, keycode_c, key_d, (select keycode from keycode where key_d = keyword and c.keycode_c = substr(keycode, 1, 5)) keycode_d,key_e, use, max from c
+    )
+    select year, description, key_A, keycode_a, key_b, keycode_b, key_c, keycode_c, key_d, keycode_d, key_e, (select keycode from keycode where key_e = keyword and d.keycode_d = substr(keycode, 1, 7)) keycode_e, use, max from d
+) test
+order by year;
+
+select * from description;
+
+select * from data
+order by year;
